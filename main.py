@@ -1,8 +1,11 @@
+import sys
 import numpy as np
 import datetime as dt
 import scipy.optimize as sc
 import pandas as pd
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import yfinance as yf
 from pandas_datareader import data as pdr
 
 
@@ -107,6 +110,9 @@ def displayWeights(array):
 def EF_graph(meanReturns, covMatrix):
     maxSR_returns, maxSR_std, maxSR_allocation, minVol_returns, minVol_std, minVol_allocation, efficientList, targetReturns, efficientListWeights = calculateResults(meanReturns, covMatrix)
 
+    fig = make_subplots(rows=1, cols=3,
+                        specs=[[{"type": "scatter"}, {"type": "pie"}, {"type": "pie"}]])
+
     MaxSharpeRatio = go.Scatter(
         name='Maximum Sharpe Ratio',
         mode='markers',
@@ -131,15 +137,9 @@ def EF_graph(meanReturns, covMatrix):
         marker=dict(color='green', size=14, line=dict(width=3, color='black'))
     )
 
-    data = [MaxSharpeRatio, MinVol, EF_curve]
-
-    layout = go.Layout(
-        yaxis = dict(title="Annualised Return (%)"),
-        xaxis = dict(title="Annualised Volatility (%)"),
-        width = 800,
-        height = 600)
-
-    fig = go.Figure(data=data, layout=layout)
+    fig.add_trace(MaxSharpeRatio, row=1, col=1)
+    fig.add_trace(MinVol, row=1, col=1)
+    fig.add_trace(EF_curve, row=1, col=1)
 
     r_efficientListWeights = efficientListWeights
     for i in range(1,30):
@@ -147,16 +147,39 @@ def EF_graph(meanReturns, covMatrix):
         r_efficientListWeights[i][1] = [round(j*100,2) for j in r_efficientListWeights[i][1]]
     displayWeights(r_efficientListWeights)
 
+    pie_maxSR = go.Pie(name="Max Sharpe Ratio", title="Max Sharpe Ratio",labels=stockList, values=maxSR_allocation.allocation, hole=0.3)
+    pie_minVol = go.Pie(name="Min Volatility", title="Min Volatility", labels=stockList, values=minVol_allocation.allocation, hole=0.3)
+
+    fig.add_trace(pie_maxSR, row=1, col=2)
+    fig.add_trace(pie_minVol, row=1, col=3)
+
+    fig.update_layout(
+        yaxis=dict(title="Annualised Return (%)"),
+        xaxis=dict(title="Annualised Volatility (%)"),
+        width=1200,
+        height=600,
+    )
+
     return fig.show()
 
 
-def main():
-    with open("tickers.txt") as f:
+def main(argv):
+    global tradingDays
+    global stockList
+    yf.pdr_override()
+
+    if len(sys.argv) < 3:
+        print("Usage: python main.py <filename> <years>")
+        sys.exit(2)
+
+    file_name = sys.argv[1]
+    years = int(sys.argv[2])
+
+    with open(file_name) as f:
         stockList = f.read().splitlines()
 
     stockList = sorted(stockList, key=str.lower)
 
-    years = 3
     endDate = dt.datetime.now()
     startDate = endDate - dt.timedelta(days=365 * years)
     tradingDays = 252 * years
@@ -178,4 +201,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
